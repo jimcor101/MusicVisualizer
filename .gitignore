@@ -1,0 +1,50 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+.metadata/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Java
+*.class
+*.log
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+hs_err_pid*
+
+# JavaFX
+/build/
+/dist/
+/nbproject/private/
+/nbbuild/
+/nbdist/
+/.nb-gradle/
+
+# Temporary files
+*~
+*.tmp
+*.bak
+*.swp
+*.swo
