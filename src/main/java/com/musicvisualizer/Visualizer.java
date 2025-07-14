@@ -84,7 +84,7 @@ import java.util.Random;
 public class Visualizer extends Application {
     // Display Constants
     /** Application window width in pixels */
-    private static final int WIDTH = 1000;
+    private static final int WIDTH = 1300;
     /** Application window height in pixels */
     private static final int HEIGHT = 700;
     /** Control panel height */
@@ -185,6 +185,23 @@ public class Visualizer extends Application {
     private double currentSmoothingFactor = DEFAULT_SMOOTHING_FACTOR;
     /** Current particle spawn count (adjustable) */
     private int currentParticleCount = DEFAULT_PARTICLE_SPAWN_COUNT;
+    
+    // Per-Mode Settings
+    /** Mandala size multiplier (0.5 to 3.0) */
+    private double mandalaSize = 1.0;
+    /** Waveform amplitude multiplier (0.1 to 5.0) */
+    private double waveformAmplitude = 1.0;
+    /** 3D spectrum depth factor (0.1 to 2.0) */
+    private double spectrumDepth = 1.0;
+    /** Star field density (50 to 500 stars) */
+    private int starDensity = 200;
+    /** Star field brightness multiplier (0.3 to 2.0) */
+    private double starBrightness = 1.0;
+    /** Oscilloscope trail length (10 to 200 points) */
+    private int oscilloscopeTrailLength = 100;
+    /** Oscilloscope sensitivity (0.1 to 3.0) */
+    private double oscilloscopeSensitivity = 1.0;
+    
     /** Flag for fullscreen mode */
     private boolean isFullscreen = false;
     /** Flag for settings panel visibility */
@@ -219,6 +236,26 @@ public class Visualizer extends Application {
     private Slider smoothingSlider;
     /** Particle count slider */
     private Slider particleCountSlider;
+    
+    // Per-Mode Setting Sliders
+    /** Mandala size adjustment slider */
+    private Slider mandalaSizeSlider;
+    /** Waveform amplitude adjustment slider */
+    private Slider waveformAmplitudeSlider;
+    /** 3D spectrum depth adjustment slider */
+    private Slider spectrumDepthSlider;
+    /** Star field density adjustment slider */
+    private Slider starDensitySlider;
+    /** Star field brightness adjustment slider */
+    private Slider starBrightnessSlider;
+    /** Oscilloscope trail length adjustment slider */
+    private Slider oscilloscopeTrailSlider;
+    /** Oscilloscope sensitivity adjustment slider */
+    private Slider oscilloscopeSensitivitySlider;
+    
+    // Dynamic settings containers
+    /** Container for mode-specific settings */
+    private VBox modeSpecificSettings;
     /** Visualization mode selector */
     private ComboBox<String> modeSelector;
     /** Canvas for rendering */
@@ -291,7 +328,10 @@ public class Visualizer extends Application {
             
             System.out.println("[INIT] Creating and showing main window");
             // Create and show scene
-            Scene scene = new Scene(mainLayout, WIDTH, HEIGHT, Color.BLACK);
+            // Create root StackPane to allow overlays
+            StackPane root = new StackPane();
+            root.getChildren().add(mainLayout);
+            Scene scene = new Scene(root, WIDTH, HEIGHT, Color.BLACK);
             setupKeyHandling(scene, stage);
             
             stage.setScene(scene);
@@ -337,6 +377,7 @@ public class Visualizer extends Application {
             System.out.println("[UI] Laying out components");
             mainLayout.setCenter(canvasContainer);
             mainLayout.setBottom(controlPanel);
+            // Settings panel will be added/removed dynamically via toggle
             
             // Make canvas resizable with proper bounds
             System.out.println("[UI] Setting up canvas resize listeners");
@@ -514,6 +555,8 @@ public class Visualizer extends Application {
                         System.out.println("[UI] Set to spectrum mode (" + MODE_SPECTRUM + ")");
                         break;
                 }
+                // Update settings panel for new mode
+                updateModeSpecificSettings();
             } catch (Exception ex) {
                 System.err.println("[ERROR] Error changing visualization mode: " + ex.getMessage());
                 ex.printStackTrace();
@@ -540,15 +583,24 @@ public class Visualizer extends Application {
      * Creates the settings panel with customization sliders.
      */
     private void createSettingsPanel() {
+        System.out.println("[UI] Creating settings panel...");
         settingsPanel = new VBox(10);
         settingsPanel.setAlignment(Pos.TOP_CENTER);
         settingsPanel.setPadding(new Insets(10));
-        settingsPanel.setStyle("-fx-background-color: #444444;");
+        settingsPanel.setStyle("-fx-background-color: #333333; -fx-border-color: #888888; -fx-border-width: 2px; -fx-border-radius: 8px; -fx-background-radius: 8px;");
         settingsPanel.setPrefWidth(SETTINGS_PANEL_WIDTH);
+        settingsPanel.setMinWidth(SETTINGS_PANEL_WIDTH);
+        settingsPanel.setMaxWidth(SETTINGS_PANEL_WIDTH);
+        System.out.println("[UI] Settings panel VBox created with width: " + SETTINGS_PANEL_WIDTH);
         
         Label title = new Label("Settings");
         title.setTextFill(Color.WHITE);
         title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        
+        // Global settings section
+        Label globalLabel = new Label("Global Settings");
+        globalLabel.setTextFill(Color.LIGHTGRAY);
+        globalLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
         
         // Smoothing control
         Label smoothingLabel = new Label("Smoothing:");
@@ -578,12 +630,134 @@ public class Visualizer extends Application {
             }
         });
         
+        // Mode-specific settings section
+        Label modeLabel = new Label("Mode Settings");
+        modeLabel.setTextFill(Color.LIGHTGRAY);
+        modeLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+        
+        // Container for dynamic mode-specific settings
+        modeSpecificSettings = new VBox(5);
+        modeSpecificSettings.setAlignment(Pos.TOP_CENTER);
+        
+        // Create all mode-specific sliders
+        createModeSpecificSliders();
+        
         settingsPanel.getChildren().addAll(
-            title, smoothingLabel, smoothingSlider,
-            particleLabel, particleCountSlider
+            title, 
+            globalLabel, smoothingLabel, smoothingSlider,
+            particleLabel, particleCountSlider,
+            modeLabel, modeSpecificSettings
         );
         
-        settingsPanel.setVisible(false);
+        System.out.println("[UI] Settings panel children added: " + settingsPanel.getChildren().size() + " items");
+        
+        // Update mode-specific settings for current mode
+        updateModeSpecificSettings();
+        
+        // Settings panel starts hidden and will be added/removed via toggle
+        System.out.println("[UI] Settings panel creation completed successfully");
+    }
+    
+    /**
+     * Creates all mode-specific setting sliders.
+     */
+    private void createModeSpecificSliders() {
+        // Mandala size slider
+        mandalaSizeSlider = new Slider(0.5, 3.0, mandalaSize);
+        mandalaSizeSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            mandalaSize = newVal.doubleValue();
+            System.out.println("[UI] Mandala size changed to: " + mandalaSize);
+        });
+        
+        // Waveform amplitude slider
+        waveformAmplitudeSlider = new Slider(0.1, 5.0, waveformAmplitude);
+        waveformAmplitudeSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            waveformAmplitude = newVal.doubleValue();
+            System.out.println("[UI] Waveform amplitude changed to: " + waveformAmplitude);
+        });
+        
+        // 3D spectrum depth slider
+        spectrumDepthSlider = new Slider(0.1, 2.0, spectrumDepth);
+        spectrumDepthSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            spectrumDepth = newVal.doubleValue();
+            System.out.println("[UI] Spectrum depth changed to: " + spectrumDepth);
+        });
+        
+        // Star field density slider
+        starDensitySlider = new Slider(50, 500, starDensity);
+        starDensitySlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            starDensity = newVal.intValue();
+            System.out.println("[UI] Star density changed to: " + starDensity);
+        });
+        
+        // Star field brightness slider
+        starBrightnessSlider = new Slider(0.3, 2.0, starBrightness);
+        starBrightnessSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            starBrightness = newVal.doubleValue();
+            System.out.println("[UI] Star brightness changed to: " + starBrightness);
+        });
+        
+        // Oscilloscope trail length slider
+        oscilloscopeTrailSlider = new Slider(10, 200, oscilloscopeTrailLength);
+        oscilloscopeTrailSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            oscilloscopeTrailLength = newVal.intValue();
+            System.out.println("[UI] Oscilloscope trail length changed to: " + oscilloscopeTrailLength);
+        });
+        
+        // Oscilloscope sensitivity slider
+        oscilloscopeSensitivitySlider = new Slider(0.1, 3.0, oscilloscopeSensitivity);
+        oscilloscopeSensitivitySlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            oscilloscopeSensitivity = newVal.doubleValue();
+            System.out.println("[UI] Oscilloscope sensitivity changed to: " + oscilloscopeSensitivity);
+        });
+    }
+    
+    /**
+     * Updates the mode-specific settings panel based on current visualization mode.
+     */
+    private void updateModeSpecificSettings() {
+        if (modeSpecificSettings == null) return;
+        
+        modeSpecificSettings.getChildren().clear();
+        
+        switch (visualizationMode) {
+            case MODE_WAVEFORM:
+                addSettingControl("Amplitude:", waveformAmplitudeSlider);
+                break;
+                
+            case MODE_3D_SPECTRUM:
+                addSettingControl("Depth:", spectrumDepthSlider);
+                break;
+                
+            case MODE_OSCILLOSCOPE:
+                addSettingControl("Trail Length:", oscilloscopeTrailSlider);
+                addSettingControl("Sensitivity:", oscilloscopeSensitivitySlider);
+                break;
+                
+            case MODE_MANDALA:
+                addSettingControl("Size:", mandalaSizeSlider);
+                break;
+                
+            case MODE_STARFIELD:
+                addSettingControl("Star Count:", starDensitySlider);
+                addSettingControl("Brightness:", starBrightnessSlider);
+                break;
+                
+            default:
+                Label noSettings = new Label("No specific settings for this mode");
+                noSettings.setTextFill(Color.LIGHTGRAY);
+                modeSpecificSettings.getChildren().add(noSettings);
+                break;
+        }
+    }
+    
+    /**
+     * Helper method to add a labeled slider to the mode-specific settings.
+     */
+    private void addSettingControl(String labelText, Slider slider) {
+        Label label = new Label(labelText);
+        label.setTextFill(Color.WHITE);
+        modeSpecificSettings.getChildren().addAll(label, slider);
     }
     
     /**
@@ -722,22 +896,171 @@ public class Visualizer extends Application {
      * Toggles settings panel visibility.
      */
     private void toggleSettingsPanel() {
-        System.out.println("[UI] Toggling settings panel from " + settingsVisible + " to " + !settingsVisible);
+        System.out.println("[UI] Opening settings dialog");
         try {
-            settingsVisible = !settingsVisible;
-            settingsPanel.setVisible(settingsVisible);
-            
-            if (settingsVisible) {
-                System.out.println("[UI] Showing settings panel");
-                mainLayout.setRight(settingsPanel);
-            } else {
-                System.out.println("[UI] Hiding settings panel");
-                mainLayout.setRight(null);
-            }
-            System.out.println("[UI] Settings panel toggle completed");
+            showSettingsDialog();
         } catch (Exception e) {
-            System.err.println("[ERROR] Error toggling settings panel: " + e.getMessage());
+            System.err.println("[ERROR] Error showing settings dialog: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Shows a modal settings dialog.
+     */
+    private void showSettingsDialog() {
+        // Create dialog stage
+        Stage dialogStage = new Stage();
+        dialogStage.setTitle("Music Visualizer Settings");
+        dialogStage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
+        dialogStage.initOwner(canvas.getScene().getWindow());
+        dialogStage.setResizable(false);
+        
+        // Create dialog content
+        VBox dialogContent = new VBox(15);
+        dialogContent.setPadding(new Insets(20));
+        dialogContent.setStyle("-fx-background-color: #2a2a2a;");
+        dialogContent.setAlignment(Pos.TOP_CENTER);
+        
+        // Title
+        Label titleLabel = new Label("Settings");
+        titleLabel.setTextFill(Color.WHITE);
+        titleLabel.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
+        
+        // Global settings section
+        Label globalLabel = new Label("Global Settings");
+        globalLabel.setTextFill(Color.LIGHTGRAY);
+        globalLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        
+        // Smoothing control
+        VBox smoothingBox = new VBox(5);
+        Label smoothingLabel = new Label("Audio Smoothing: " + String.format("%.2f", currentSmoothingFactor));
+        smoothingLabel.setTextFill(Color.WHITE);
+        Slider dialogSmoothingSlider = new Slider(0.1, 0.95, currentSmoothingFactor);
+        dialogSmoothingSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            currentSmoothingFactor = newVal.doubleValue();
+            smoothingLabel.setText("Audio Smoothing: " + String.format("%.2f", currentSmoothingFactor));
+        });
+        smoothingBox.getChildren().addAll(smoothingLabel, dialogSmoothingSlider);
+        
+        // Particle count control
+        VBox particleBox = new VBox(5);
+        Label particleLabel = new Label("Particle Count: " + currentParticleCount);
+        particleLabel.setTextFill(Color.WHITE);
+        Slider dialogParticleSlider = new Slider(1, 50, currentParticleCount);
+        dialogParticleSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            currentParticleCount = newVal.intValue();
+            particleLabel.setText("Particle Count: " + currentParticleCount);
+        });
+        particleBox.getChildren().addAll(particleLabel, dialogParticleSlider);
+        
+        // Mode-specific settings
+        Label modeLabel = new Label("Mode Settings (" + getModeDisplayName() + ")");
+        modeLabel.setTextFill(Color.LIGHTGRAY);
+        modeLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        
+        VBox modeSettingsBox = new VBox(10);
+        createDialogModeSettings(modeSettingsBox);
+        
+        // Close button
+        Button closeButton = new Button("Close");
+        closeButton.setStyle("-fx-font-size: 14px; -fx-pref-width: 80px;");
+        closeButton.setOnAction(e -> dialogStage.close());
+        
+        // Add all components
+        dialogContent.getChildren().addAll(
+            titleLabel,
+            globalLabel, smoothingBox, particleBox,
+            modeLabel, modeSettingsBox,
+            closeButton
+        );
+        
+        // Create scene and show dialog
+        Scene dialogScene = new Scene(dialogContent, 350, 500);
+        dialogStage.setScene(dialogScene);
+        dialogStage.centerOnScreen();
+        dialogStage.show();
+        
+        System.out.println("[UI] Settings dialog displayed");
+    }
+    
+    /**
+     * Creates mode-specific settings for the dialog.
+     */
+    private void createDialogModeSettings(VBox container) {
+        container.getChildren().clear();
+        
+        switch (visualizationMode) {
+            case MODE_WAVEFORM:
+                addDialogSetting(container, "Amplitude", waveformAmplitude, 0.1, 5.0, 
+                    (obs, oldVal, newVal) -> waveformAmplitude = newVal.doubleValue());
+                break;
+                
+            case MODE_3D_SPECTRUM:
+                addDialogSetting(container, "Depth", spectrumDepth, 0.1, 2.0,
+                    (obs, oldVal, newVal) -> spectrumDepth = newVal.doubleValue());
+                break;
+                
+            case MODE_OSCILLOSCOPE:
+                addDialogSetting(container, "Trail Length", oscilloscopeTrailLength, 10, 200,
+                    (obs, oldVal, newVal) -> oscilloscopeTrailLength = newVal.intValue());
+                addDialogSetting(container, "Sensitivity", oscilloscopeSensitivity, 0.1, 3.0,
+                    (obs, oldVal, newVal) -> oscilloscopeSensitivity = newVal.doubleValue());
+                break;
+                
+            case MODE_MANDALA:
+                addDialogSetting(container, "Size", mandalaSize, 0.5, 3.0,
+                    (obs, oldVal, newVal) -> mandalaSize = newVal.doubleValue());
+                break;
+                
+            case MODE_STARFIELD:
+                addDialogSetting(container, "Star Count", starDensity, 50, 500,
+                    (obs, oldVal, newVal) -> starDensity = newVal.intValue());
+                addDialogSetting(container, "Brightness", starBrightness, 0.3, 2.0,
+                    (obs, oldVal, newVal) -> starBrightness = newVal.doubleValue());
+                break;
+                
+            default:
+                Label noSettings = new Label("No specific settings for this mode");
+                noSettings.setTextFill(Color.LIGHTGRAY);
+                container.getChildren().add(noSettings);
+                break;
+        }
+    }
+    
+    /**
+     * Adds a setting control to the dialog.
+     */
+    private void addDialogSetting(VBox container, String name, double value, double min, double max, 
+                                  javafx.beans.value.ChangeListener<Number> listener) {
+        VBox settingBox = new VBox(5);
+        Label label = new Label(name + ": " + String.format("%.2f", value));
+        label.setTextFill(Color.WHITE);
+        
+        Slider slider = new Slider(min, max, value);
+        slider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            listener.changed(obs, oldVal, newVal);
+            label.setText(name + ": " + String.format("%.2f", newVal.doubleValue()));
+        });
+        
+        settingBox.getChildren().addAll(label, slider);
+        container.getChildren().add(settingBox);
+    }
+    
+    /**
+     * Gets the display name for the current mode.
+     */
+    private String getModeDisplayName() {
+        switch (visualizationMode) {
+            case MODE_SPECTRUM: return "Spectrum Bars";
+            case MODE_PARTICLES: return "Particles";
+            case MODE_CIRCULAR: return "Circular";
+            case MODE_WAVEFORM: return "Waveform";
+            case MODE_3D_SPECTRUM: return "3D Spectrum";
+            case MODE_OSCILLOSCOPE: return "Oscilloscope";
+            case MODE_MANDALA: return "Mandala";
+            case MODE_STARFIELD: return "Star Field";
+            default: return "Unknown";
         }
     }
     
@@ -1095,41 +1418,49 @@ public class Visualizer extends Application {
                         System.out.println("[INPUT] Switching to spectrum mode via key 1");
                         visualizationMode = MODE_SPECTRUM;
                         modeSelector.setValue("Spectrum Bars");
+                        updateModeSpecificSettings();
                         break;
                     case DIGIT2:
                         System.out.println("[INPUT] Switching to particle mode via key 2");
                         visualizationMode = MODE_PARTICLES;
                         modeSelector.setValue("Particles");
+                        updateModeSpecificSettings();
                         break;
                     case DIGIT3:
                         System.out.println("[INPUT] Switching to circular mode via key 3");
                         visualizationMode = MODE_CIRCULAR;
                         modeSelector.setValue("Circular");
+                        updateModeSpecificSettings();
                         break;
                     case DIGIT4:
                         System.out.println("[INPUT] Switching to waveform mode via key 4");
                         visualizationMode = MODE_WAVEFORM;
                         modeSelector.setValue("Waveform");
+                        updateModeSpecificSettings();
                         break;
                     case DIGIT5:
                         System.out.println("[INPUT] Switching to 3D spectrum mode via key 5");
                         visualizationMode = MODE_3D_SPECTRUM;
                         modeSelector.setValue("3D Spectrum");
+                        updateModeSpecificSettings();
                         break;
                     case DIGIT6:
                         System.out.println("[INPUT] Switching to oscilloscope mode via key 6");
                         visualizationMode = MODE_OSCILLOSCOPE;
                         modeSelector.setValue("Oscilloscope");
+                        updateModeSpecificSettings();
                         break;
                     case DIGIT7:
                         System.out.println("[INPUT] Switching to mandala mode via key 7");
                         visualizationMode = MODE_MANDALA;
                         modeSelector.setValue("Mandala");
+                        updateModeSpecificSettings();
                         break;
                     case DIGIT8:
                         System.out.println("[INPUT] Switching to star field mode via key 8");
                         visualizationMode = MODE_STARFIELD;
                         modeSelector.setValue("Star Field");
+                        updateModeSpecificSettings();
                         break;
                     case SPACE:
                         System.out.println("[INPUT] Space key pressed - toggling play/pause");
@@ -1436,7 +1767,7 @@ public class Visualizer extends Application {
                 double x = (i / (double) OUTPUT_BANDS) * width;
                 // Convert magnitude to visual height (magnitudes are in dB, typically -60 to 0)
                 double normalizedMag = Math.max(0, (waveData[i] + 60) / 60.0); // Normalize -60dB to 0dB -> 0 to 1
-                double y = height / 2.0 + (normalizedMag - 0.5) * height * 0.8; // Center around middle with good range
+                double y = height / 2.0 + (normalizedMag - 0.5) * height * 0.8 * waveformAmplitude; // Center around middle with adjustable amplitude
                 
                 if (firstPoint) {
                     gc.moveTo(x, y);
@@ -1472,7 +1803,7 @@ public class Visualizer extends Application {
             
             // Calculate 3D position
             double t = i / (double) (OUTPUT_BANDS - 1);
-            double perspectiveFactor = PERSPECTIVE_FACTOR + (1 - PERSPECTIVE_FACTOR) * Math.pow(t, 2);
+            double perspectiveFactor = PERSPECTIVE_FACTOR + (1 - PERSPECTIVE_FACTOR) * Math.pow(t, 2) * spectrumDepth;
             
             double barHeight = (60 + smoothedMagnitudes[i]) * 4.0 * beatMultiplier;
             barHeight = Math.max(MIN_HEIGHT, barHeight);
@@ -1536,7 +1867,7 @@ public class Visualizer extends Application {
         
         // Calculate scope position
         double angle = (now / 1_000_000_000.0) * Math.PI * 2 * 0.5; // Slow rotation
-        double sampleRadius = radius + currentSample * 2;
+        double sampleRadius = radius + currentSample * 2 * oscilloscopeSensitivity;
         double x = centerX + Math.cos(angle) * sampleRadius;
         double y = centerY + Math.sin(angle) * sampleRadius;
         
@@ -1544,7 +1875,7 @@ public class Visualizer extends Application {
         scopeTrail.add(new Point2D(x, y));
         
         // Limit trail length
-        while (scopeTrail.size() > 300) {
+        while (scopeTrail.size() > oscilloscopeTrailLength) {
             scopeTrail.remove(0);
         }
         
@@ -1587,7 +1918,7 @@ public class Visualizer extends Application {
         double height = canvas.getHeight();
         double centerX = width / 2.0;
         double centerY = height / 2.0;
-        double maxRadius = Math.min(width, height) / 2.0;
+        double maxRadius = (Math.min(width, height) / 2.0) * mandalaSize;
         
         int symmetryOrder = 8; // 8-fold symmetry
         double rotationSpeed = (now / 20_000_000_000.0) * 360; // Slow rotation
@@ -1658,7 +1989,7 @@ public class Visualizer extends Application {
         
         // Draw stars
         for (Star star : stars) {
-            double alpha = Math.max(0.1, Math.min(1.0, star.brightness));
+            double alpha = Math.max(0.1, Math.min(1.0, star.brightness * starBrightness));
             gc.setFill(Color.hsb(star.hue, 0.8, alpha));
             
             // Draw star with size based on brightness
@@ -1717,7 +2048,7 @@ public class Visualizer extends Application {
         bassEnergy /= bassBands;
         
         // Create stars if we don't have enough
-        while (stars.size() < 200) {
+        while (stars.size() < starDensity) {
             stars.add(new Star(
                 starRandom.nextDouble() * width,
                 starRandom.nextDouble() * height,
